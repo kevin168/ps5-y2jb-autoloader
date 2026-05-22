@@ -5,7 +5,7 @@
     of the MIT license.  See the LICENSE file for details.
 */
 
-const version_string = "Y2JB 1.3 by Gezine";
+const version_string = "Y2JB 1.4 by Gezine";
 
 const autoloader_version = "v0.5";
 
@@ -1071,18 +1071,13 @@ function trigger() {
         await checkLogServer();
         
         FW_VERSION = get_fwversion();
-        send_notification("FW: " + FW_VERSION);
-
+        TITLE_ID = get_title_id();
+        
+        send_notification(version_string + "\nFW : " + FW_VERSION + "\nTitle ID : " + TITLE_ID);
         await log("FW detected : " + FW_VERSION);
+        await log("Title ID detected : " + TITLE_ID);
         
         await log("libkernel_base @ " + toHex(libkernel_base));
-        try {
-            SCE_KERNEL_DLSYM = libkernel_base + get_dlsym_offset(FW_VERSION);
-            await log("SCE_KERNEL_DLSYM @ " + toHex(SCE_KERNEL_DLSYM));
-        } catch (e) {
-            SCE_KERNEL_DLSYM = sceKernelGetModuleInfoFromAddr - 0x450n;
-            await log("WARNING : sceKernelDlsym offset not found\nUsing predicted value " + toHex(SCE_KERNEL_DLSYM));
-        }
         
         // Used for gpu rw
         sceKernelAllocateMainDirectMemory = read64(eboot_base + 0x2A65EF8n);
@@ -1094,11 +1089,8 @@ function trigger() {
         Thrd_join = libc_base + 0x49F0n;
         
         await load_localscript('kernel.js');
-        await load_localscript('kernel_offset.js');
-        await load_localscript('gpu.js');
-
-        await load_localscript('elf_loader.js');
-                
+        await load_localscript('aioshellcode.js');
+        
         ////////////////////
         // MAIN EXECUTION //
         ////////////////////
