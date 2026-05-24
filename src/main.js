@@ -7,7 +7,7 @@
 
 const version_string = "Y2JB 1.4 by Gezine";
 
-const autoloader_version = "v0.6-beta1";
+const autoloader_version = "@@VERSION@@";
 
 
 
