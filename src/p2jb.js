@@ -1776,16 +1776,16 @@ async function start_p2jb() {
                 " (jailbreak unaffected, close-KP may still fire)");
         }
 
-        try {
-            S.iov_ws.terminate();
-            S.uio_read_ws.terminate();
-            S.uio_write_ws.terminate();
-            await js_sleep(200);
-            await ulog("post-jb: 12 iov/uio workers terminated (thr_exit)");
-        } catch (e) {
-            await ulog("post-jb: worker terminate failed: " + e.message +
-                " (jailbreak unaffected)");
-        }
+        // try {
+        //     S.iov_ws.terminate();
+        //     S.uio_read_ws.terminate();
+        //     S.uio_write_ws.terminate();
+        //     await js_sleep(200);
+        //     await ulog("post-jb: 12 iov/uio workers terminated (thr_exit)");
+        // } catch (e) {
+        //     await ulog("post-jb: worker terminate failed: " + e.message +
+        //         " (jailbreak unaffected)");
+        // }
 
         try {
             const A = S.ucred_A || 0n;
