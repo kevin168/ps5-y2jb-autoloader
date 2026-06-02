@@ -969,17 +969,21 @@ function trigger() {
 
         //await log("Disabling YouTube splash screen...");
         const main_web_module_generation_addr = browser_module_addr + 0xB08n;
-        write32(main_web_module_generation_addr, 0xFFFFFFFFn); // Set to -1 (64-bit)
+        write32(main_web_module_generation_addr, 0xFFFFFFFFn);
         await log("YT splash disabled!");
 
         await log("Disabling PSN popup...");
+/*       
         // Get sceCommonDialogInitialize address and find libSceCommonDialog base
         const sceCommonDialogInitialize_addr = read64(eboot_base + 0x2A65F98n);
         //await log("sceCommonDialogInitialize_addr: " + toHex(sceCommonDialogInitialize_addr));
         
         const sceCommonDialogTerminate_addr = sceCommonDialogInitialize_addr + 0x70n;
         call(sceCommonDialogTerminate_addr);
-        
+*/
+        const sceMsgDialogTerminate_addr = eboot_base + 0x215DEB0n;
+        call(sceMsgDialogTerminate_addr);
+
         // Disable "no internet connection" retry timer
         const on_error_retry_timer_addr = browser_module_addr + 0x960n;
         //await log("on_error_retry_timer_addr: " + toHex(on_error_retry_timer_addr));
