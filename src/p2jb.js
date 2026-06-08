@@ -1655,8 +1655,10 @@ async function start_p2jb() {
         setup_pipes_kernrw(S);
 
         await ulog(p2jb_version + " - port by matem6");
-        await ulog("pipes master=" + S.master_rfd + "," + S.master_wfd +
+        if (typeof window.uiLog === 'function') {
+            window.uiLog("pipes master=" + S.master_rfd + "," + S.master_wfd +
             " victim=" + S.victim_rfd + "," + S.victim_wfd);
+        }
 
         const leak_nw = LEAK_CORES.length;
         let eta_minutes;
