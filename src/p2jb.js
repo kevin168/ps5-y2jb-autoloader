@@ -1694,7 +1694,13 @@ async function start_p2jb() {
         await ulog("orig_main_core=" + S.orig_main_core);
 
         apply_main_thread_pinning(S);
+        if (typeof start_progress_overlay === 'function') {
+            start_progress_overlay(eta_minutes);
+        }
         await prepare_fds(S);
+        if (typeof kill_progress_overlay === 'function') {
+            kill_progress_overlay();
+        }
         await stage0(S);
 
         await stage1(S);
