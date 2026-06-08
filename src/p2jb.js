@@ -1693,6 +1693,8 @@ async function start_p2jb() {
         S.orig_main_core = get_current_core();
         await ulog("orig_main_core=" + S.orig_main_core);
 
+        await js_sleep(10000);
+
         apply_main_thread_pinning(S);
         if (typeof start_progress_overlay === 'function') {
             start_progress_overlay(eta_minutes);
