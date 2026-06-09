@@ -1169,7 +1169,7 @@ function trigger() {
             window.updateProgress(20, "Running kernel exploit...");
         }
 
-        if (compare_version(FW_VERSION, "0.01") <= 0) {
+        if (compare_version(FW_VERSION, "10.01") <= 0) {
             await start_lapse();
         }
         else if (compare_version(FW_VERSION, "12.40") <= 0) {
