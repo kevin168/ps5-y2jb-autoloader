@@ -577,7 +577,7 @@ function start_progress_overlay(total_minutes) {
     contentBox.appendChild(title);
 
     const progressBarContainer = document.createElement("div");
-    progressBarContainer.style.width = "400px";
+    progressBarContainer.style.width = "500px";
     progressBarContainer.style.height = "20px";
     progressBarContainer.style.backgroundColor = "#111111";
     progressBarContainer.style.border = "1px solid #444444";
