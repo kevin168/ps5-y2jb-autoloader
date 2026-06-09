@@ -1172,7 +1172,7 @@ function trigger() {
         if (compare_version(FW_VERSION, "10.01") <= 0) {
             await start_lapse();
         }
-        else if (compare_version(FW_VERSION, "12.40") <= 0) {
+        else if (compare_version(FW_VERSION, "12.70") <= 0) {
             await start_p2jb();
         }
         else {
