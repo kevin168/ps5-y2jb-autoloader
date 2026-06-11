@@ -29,6 +29,7 @@ This repository is a research-focused fork of Y2JB & Y2JB Autoloader that aims t
 - **UI structure refactoring** — moved static UI elements from `main.js` into the HTML template, simplifying the initialization flow.
 - **Log transmission refactoring** — removed redundant network transmission logic for the LOG_SERVER configuration in Y2JB code. This change optimization lowers the pipe quantity and expanding the P2JB exploit's stability.
 - **P2JB progress indicator** — implemented periodic progress updates during the `cr_ref` overflow phase, allowing the estimated completion percentage to be monitored through the progress bar.
+- **Optimized** `download0.dat` **generation** — refactored the GitHub Actions workflow for building the PS5 UFS2 download0.dat file. This adjustment optimizes the compression flow, successfully reducing the final compressed file size down to approximately 1.5MB.
 
 <p align="center"><img src="./p2jb_1.png" width="600" /><br>cr_ref Overflow Stage</p>
 <p align="center"><img src="./p2jb_2.png" width="600" /><br>P2JB Exploit</p>
