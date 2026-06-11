@@ -1,0 +1,94 @@
+<!--
+ * Copyright (C) 2025 Gezine
+ *
+ * This software may be modified and distributed under the terms
+ * of the MIT license.  See the LICENSE file for details.
+ * -->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>PS5 Jailbreak</title>
+    <style>
+      body {
+        background-image: url("bg.jpg");
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-color: #252526;
+        color: #cccccc;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        text-align: center;
+        padding-top: 3vh;
+        margin: 0;
+      }
+      h2 {
+        margin-top: 0px;
+        margin-bottom: 2vh;
+        font-size: 2.5vw;
+        font-weight: bold;
+      }
+      #console {
+        font-family: monospace;
+        background-color: #1e1e1e;
+        color: #cccccc;
+        border: 1px solid #3c3c3c;
+        padding: 15px;
+        border-radius: 6px;
+        margin-top: 2vh;
+        margin-left: 15%;
+        margin-right: 15%;
+        text-align: left;
+        height: 65vh; 
+        overflow-y: auto;
+        font-size: 1.0vw;
+      }
+      .progress-bar-container {
+        width: 70%;
+        height: 8vh;
+        background-color: #202020;
+        border: 2px solid red;
+        border-radius: 16px;
+        margin: 0 auto;
+        overflow: hidden;
+        position: relative;
+        margin-top: 3vh;
+      }
+      #progressLabel {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #fff;
+        font-size: 3.5vh;
+        font-weight: bold;
+        z-index: 1;
+      }
+      #progressBar {
+        width: 100%;
+        height: 100%;
+        background-color: #aa0000;
+        transform-origin: left;
+        transform: scaleX(0);
+        transition: transform 0.5s ease-in-out;
+      }
+      footer {
+        margin-top: 2.5vh;
+        font-size: 0.8vw;
+        color: #888;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Y2JB Exploit Chain for PS5 Console 4.03 - 12.70</h2>
+    <pre id="console"></pre>
+    <div class="progress-bar-container">
+      <div id="progressLabel">Loading...</div>
+      <div id="progressBar"></div>
+    </div>
+    <footer>
+      v260610.2000
+    </footer>
+    <script src="main.js"></script>
+  </body>
+</html>
