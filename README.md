@@ -7,6 +7,8 @@
 <p align="center">Automatically loads the kernel exploit, elf_loader, your elf payloads and .js scripts<br>Supports PS5 firmwares 4.03-12.70</p>
 
 <h4 align="center">⚠️ This repository is for research and educational purposes only</h4>
+<p align="center">🚧 Beta / Work in Progress</p>
+<p align="center">⚠️ This project is still under active development and beta testing. Firmware-specific issues may occur.</p>
 
 ## Overview
 This repository is a research-focused fork of Y2JB & Y2JB Autoloader that aims to improve the reliability and success rate of existing public exploit code.
@@ -25,14 +27,25 @@ This repository is a research-focused fork of Y2JB & Y2JB Autoloader that aims t
 ## Major Changes
 
 - **Removed debugging logs** — cleaned up and commented out debugging logs to reduce side effects and improve runtime consistency. Note that this optimization only applies to standard "success path" messages; all warnings, errors, and other critical diagnostic logs remain fully intact and active.
+- **Firmware 10.01 and below status** — retained identical core logic for the Lapse software on versions ≤ 10.01, with modifications limited strictly to log optimizations. Expect a similar exploit success rate as before.
 - **Background image** — Background image support has been added. Rename your preferred image to **bg.jpg** and replace the existing in the download0.dat file.
 - **UI structure refactoring** — moved static UI elements from `main.js` into the HTML template, simplifying the initialization flow.
 - **Log transmission refactoring** — removed redundant network transmission logic for the LOG_SERVER configuration in Y2JB code. This change optimization lowers the pipe quantity and expanding the P2JB exploit's stability.
 - **P2JB progress indicator** — implemented periodic progress updates during the `cr_ref` overflow phase, allowing the estimated completion percentage to be monitored through the progress bar.
-- **Optimized** `download0.dat` **generation** — refactored the GitHub Actions workflow for building the PS5 UFS2 download0.dat file. This adjustment optimizes the compression flow, successfully reducing the final compressed file size down to approximately 1.5MB.
+- **Optimized** `download0.dat` **generation** — refactored the GitHub Actions workflow for building the PS5 UFS2 download0.dat file. This adjustment optimizes the compression flow, reducing the final compressed file size to approximately 1.5MB, making it significantly easier to share, store, and download over the internet.
 
 <p align="center"><img src="./p2jb_1.png" width="600" /><br>cr_ref Overflow Stage</p>
 <p align="center"><img src="./p2jb_2.png" width="600" /><br>P2JB Exploit</p>
+
+## Optimization & Success Rate Guidelines (User Tips)
+
+To achieve the maximum success rate with the **P2JB** exploit, please pay close attention to the following runtime behaviors observed during development and testing:
+
+- **Keep Pipe Counts Low (Target: ≤ 34)** — The exploit's stability is highly dependent on system pipe structures. Keeping the pipe count at **33** yields the best results. A pipe count of 34 still offers a high success rate, but crossing above 34 will drastically degrade performance. 
+  - *Recommendation:* Network log removal optimization helps keep this value at 34. If you face instability, consider disabling network connections entirely during the initial exploit stage and re-enabling them only after the jailbreak completes successfully.
+- **Ensure Uninterrupted Execution** — The P2JB process is highly sensitive to background interruptions. Actions that trigger OS notifications or app state switches will significantly lower the success rate.
+  - *Recommendation:* Avoid background events during the process. Do not disconnect/reconnect networks, minimize the YouTube app, or trigger system popups until the exploit sequence is fully finished.
+- **Backup & Testing Strategy (Highly Recommended)** — Before testing this repository, it is strongly advised to maintain a working backup exploit on your console. If you already have a stable, working exploit installed on the **US version** of the YouTube app, you can safely install and test this repository on the **EU or JP versions** of the app. This approach ensures your primary setup remains functional while you test these optimizations.
 
 ## ToDo List
 
