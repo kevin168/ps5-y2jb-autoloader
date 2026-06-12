@@ -1,0 +1,54 @@
+name: PS5 UFS2 download0.dat Generator
+
+on:
+  push:
+    branches: [ main ]  # starts with each commit to main branch
+  workflow_dispatch:    # can be manually started
+
+jobs:
+  ufs-image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get all files
+        uses: actions/checkout@v4
+
+      - name: Create UFS2 image in FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14.2"
+          copyback: true
+          run: |
+            set -e
+
+            # 1. Create 336789504 byte image file
+            truncate -s 336789504 download0.dat
+
+            # 2. Attach as memory disk (returns e.g. "md0")
+            MD=$(mdconfig -a -t vnode -f "$(pwd)/download0.dat")
+
+            # 3. Create UFS2 filesystem
+            # -b 32768 (Block size), -f 4096 (Fragment size)
+            newfs -O 2 -b 32768 -f 4096 /dev/${MD}
+
+            # 4. Mount
+            mount /dev/${MD} /mnt
+
+            # 5. Copy all contents
+            cp -R download0/* /mnt/
+
+            # 6. Set permissions
+            chmod -R 777 /mnt/*
+
+            # 7. Unmount and detach
+            umount /mnt
+            mdconfig -d -u ${MD}
+
+      - name: Verify image
+        run: file download0.dat
+
+      - name: Upload UFS2 image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: download0.dat
+          path: download0.dat
