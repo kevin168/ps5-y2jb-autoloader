@@ -817,7 +817,7 @@ async function start_p2jb() {
 
             syscall(SYSCALL.setuid, 1n);
 
-            await js_sleep(10000);
+            await js_sleep(1000);
 
             const TOTAL_SYSCALLS = 0x100000001n - BigInt(free_fds_num);
 
@@ -854,9 +854,11 @@ async function start_p2jb() {
                     normal: normal_w, queued: 0n
                 });
             }
-            
-            let optime_cntr = 0;
+
+            let op_percent_cntr = 0;
             let refresh_cntr = 0;
+            let refresh_limit = 0;
+            let loop_cntr = 0;
             let all_fed = false;
             while (!all_fed) {
                 all_fed = true;
@@ -870,30 +872,54 @@ async function start_p2jb() {
                         if (n > 0n && n <= BigInt(FEED_CHUNK)) lw.queued += n;
                     }
                 }
-                await js_sleep(500);
-                refresh_cntr++;
-                if (refresh_cntr >= 120) { // increase 2% each minute
-                    refresh_cntr = 0;
-                    optime_cntr = optime_cntr + 2;
-                    if (optime_cntr > 99) optime_cntr = 99;
-                    let msg = "Working on cr_ref overflow... " + optime_cntr + "%";
-                    document.getElementById("progressBar").style.transform = "scaleX(" + optime_cntr / 100 + ")";
-                    document.getElementById("progressLabel").textContent = msg;
+                if(!all_fed) {
+                    if (loop_cntr < 16) { // fill the pipeline quickly
+                        loop_cntr++;
+                        await js_sleep(5);
+                    } else {
+                        if (op_percent_cntr < 68) { // until 68% fill the pipeline in a 30 seconds period
+                            await js_sleep(29000);
+                            refresh_limit = 2;
+                        } else { // after 68% fill the pipeline in a 1 second period
+                            await js_sleep(1000);
+                            refresh_limit = 60;
+                        }
+                        refresh_cntr++;
+                        if (refresh_cntr >= refresh_limit) { // increase 2% each minute
+                            refresh_cntr = 0;
+                            op_percent_cntr += 2;
+                            if (op_percent_cntr > 99) op_percent_cntr = 99;
+                            let msg = "Working on cr_ref overflow... " + op_percent_cntr + "%";
+                            document.getElementById("progressBar").style.transform = "scaleX(" + op_percent_cntr / 100 + ")";
+                            document.getElementById("progressLabel").textContent = msg;
+                        }
+                    }
                 }
             }
 
+            op_percent_cntr = 75;
+            let msg = "Working on cr_ref overflow... " + op_percent_cntr + "%";
+            document.getElementById("progressBar").style.transform = "scaleX(" + op_percent_cntr / 100 + ")";
+            document.getElementById("progressLabel").textContent = msg;
+
             for (const lw of lws) {
                 while (true) {
-                    write64(lw.finished, 0n);
-                    await js_sleep(1500);
-                    if (read64(lw.finished) === 0n) break;
+                    if (op_percent_cntr < 97) { // untill 97% just wait for the workers to empty pipeline as much as they can
+                        await js_sleep(30000);
+                        refresh_limit = 2;
+                    } else {
+                        write64(lw.finished, 0n);
+                        await js_sleep(1500);
+                        if (read64(lw.finished) === 0n) break;
+                        refresh_limit = 38;
+                    }
                     refresh_cntr++;
-                    if (refresh_cntr >= 38) { // increase 2% each minute
+                    if (refresh_cntr >= refresh_limit) { // increase 2% each minute
                         refresh_cntr = 0;
-                        optime_cntr = optime_cntr + 2;
-                        if (optime_cntr > 99) optime_cntr = 99;
-                        let msg = "Working on cr_ref overflow... " + optime_cntr + "%";
-                        document.getElementById("progressBar").style.transform = "scaleX(" + optime_cntr / 100 + ")";
+                        op_percent_cntr += 2;
+                        if (op_percent_cntr > 99) op_percent_cntr = 99;
+                        let msg = "Working on cr_ref overflow... " + op_percent_cntr + "%";
+                        document.getElementById("progressBar").style.transform = "scaleX(" + op_percent_cntr / 100 + ")";
                         document.getElementById("progressLabel").textContent = msg;
                     }
                 }
@@ -919,7 +945,7 @@ async function start_p2jb() {
             }
             syscall(SYSCALL.setuid, 1n);
 
-            await js_sleep(10000);
+            await js_sleep(5000);
         }
 
         function free_one_fd(S) {
@@ -2356,7 +2382,7 @@ async function start_p2jb() {
             case 1: eta_minutes = 120; break;
             case 2: eta_minutes = 90; break;
             case 3: eta_minutes = 60; break;
-            case 4: eta_minutes = 50; break;
+            case 4: eta_minutes = 48; break;
             default: eta_minutes = Math.round(48 * 4 / leak_nw); break;
         }
         const eta_str = eta_minutes < 60
