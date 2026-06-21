@@ -113,6 +113,19 @@ this will allow you to have different autoload.txt files for each app
 (these directories always take precedence over the generic ps5_autoloader directory)
 </Details>
 
+<Details>
+<Summary><i>I added the wrong .elf to the autoloader and now my console crashes when I launch y2jb. How can I fix it?</i></Summary>
+
+You can bypass the internal autoloader and fix this by using a USB drive as a recovery tool. Follow these steps:
+- **Prepare the USB:** Take a USB drive formatted as FAT32 or exFAT.
+- **Create the Folder:** In the root directory of the USB drive, create a folder named `ps5_autoloader`.
+- **Add the Payload:** Place `kstuff.elf`, `ftpsrv.elf`, or any other stable payload you prefer inside that folder.
+- **Configure the Autoload File:** In the same ps5_autoloader directory, create a text file named `autoload.txt`. Open it and type the exact name of the .elf file you just added (e.g., `kstuff.elf`).
+- **Recover:** Connect the USB drive to your console and launch y2jb.
+
+The system will prioritize and load the payload from the USB drive instead of the corrupted internal one. This will allow you to FTP into the console or use a file manager to delete/replace the problematic internal ELF file.
+</Details>
+
 ## Contributing
 
 Contributions are welcome! Feel free to open pull requests for bug fixes, UI improvements or additional features.
