@@ -958,12 +958,12 @@ function trigger() {
             const splash_screen_web_module_impl_addr = read64(splash_screen_web_module_addr + 0x18n);
             //await log("splash_screen_web_module_impl_addr: " + toHex(splash_screen_web_module_impl_addr));
     
-            //await log("Disabling YouTube splash screen...");
+            await log("Disabling YouTube splash screen...");
             const main_web_module_generation_addr = browser_module_addr + 0xB08n;
             write32(main_web_module_generation_addr, 0xFFFFFFFFn);
-            //await log("YT splash disabled!");
+            await log("YT splash disabled!");
     
-            //await log("Disabling PSN popup...");
+            await log("Disabling PSN popup...");
             
             call(read64(Y2_OFFSET.sceMsgDialogTerminate));
                     
@@ -977,26 +977,41 @@ function trigger() {
             // Set is_running to 1 (true)
             write8(is_running_addr, 0x1n);
             
-            //await log("PSN popup disabled!");
+            await log("PSN popup disabled!");
             
         } else {
-            
-            // This is voodoo hack
-            //await log("Disabling PSN and no internet popup...");
-            
-            const sceMsgDialogTerminate   = read64(Y2_OFFSET.sceMsgDialogTerminate);
+            await log("Delay before disabling popups...");
+
+            await new Promise(r => setTimeout(r, 800));
+
+            await log("Patch PSN and no internet popup...");
+
+            const sceMsgDialogTerminate = read64(Y2_OFFSET.sceMsgDialogTerminate);
             const sceErrorDialogTerminate = read64(Y2_OFFSET.sceErrorDialogTerminate);
-            
+
             const timespec = malloc(0x10);
-            write64(timespec,      0n);       // tv_sec  = 0
-            write64(timespec + 8n, 1000000n); // tv_nsec = 1ms
-                        
+            write64(timespec, 0n);
+            write64(timespec + 8n, 800000n); // 0.8ms
+
             while (call(sceMsgDialogTerminate) !== 0n) {
                 call(sceErrorDialogTerminate);
                 syscall(SYSCALL.nanosleep, timespec);
             }
-            
-            //await log("Popup disabled!");
+
+            for (let i = 0; i < 150; i++) {
+                call(sceMsgDialogTerminate);
+                call(sceErrorDialogTerminate);
+                syscall(SYSCALL.nanosleep, timespec);
+            }
+
+            setInterval(() => {
+                try {
+                    call(sceMsgDialogTerminate);
+                    call(sceErrorDialogTerminate);
+                } catch (e) { }
+            }, 1200);
+
+            await log("Popup disabled + persistent killer active");
         }
         
         
