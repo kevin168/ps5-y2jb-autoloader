@@ -1684,46 +1684,38 @@ async function start_p2jb() {
         }
 
         async function stage7(S) {
-            //send_notification("Stage 7\nFinalize: dynlib restrictions");
+    //send_notification("Stage 7\nFinalize: dynlib restrictions");
+    const is_kptr = (v) =>
+        (v & 0xFFFF000000000000n) === 0xFFFF000000000000n;
 
-            const is_kptr = (v) =>
-                (v & 0xFFFF000000000000n) === 0xFFFF000000000000n;
+    const p_dynlib = S.kread64(S.curproc + 0x3E8n);
+    if (!is_kptr(p_dynlib))
+        throw new Error("p_dynlib not a kptr: " + toHex(p_dynlib));
 
-            const p_dynlib = S.kread64(S.curproc + 0x3E8n);
+    // Original + stronger dynlib
+    S.kwrite32(p_dynlib + 0x118n, 0);
+    S.kwrite64(p_dynlib + 0x18n, 1n);
+    S.kwrite64(p_dynlib + 0xF0n, 0n);
+    S.kwrite64(p_dynlib + 0xF8n, 0xFFFFFFFFFFFFFFFFn);
 
-            if (!is_kptr(p_dynlib))
-                throw new Error("p_dynlib not a kptr: " + toHex(p_dynlib));
+    const dynlib_eboot = S.kread64(p_dynlib + 0x00n);
+    if (!is_kptr(dynlib_eboot))
+        throw new Error("dynlib_eboot not a kptr: " + toHex(dynlib_eboot));
 
-            S.kwrite32(p_dynlib + 0x118n, 0);
-            S.kwrite64(p_dynlib + 0x18n, 1n);
+    const eboot_segments = S.kread64(dynlib_eboot + 0x40n);
+    if (!is_kptr(eboot_segments))
+        throw new Error("eboot_segments not a kptr: " + toHex(eboot_segments));
 
-            S.kwrite64(p_dynlib + 0xF0n, 0n);
-            S.kwrite64(p_dynlib + 0xF8n, 0xFFFFFFFFFFFFFFFFn);
+    S.kwrite64(eboot_segments + 0x08n, 0n);
+    S.kwrite64(eboot_segments + 0x10n, 0xFFFFFFFFFFFFFFFFn);
 
-            const dynlib_eboot = S.kread64(p_dynlib + 0x00n);
+    // Extra strong auth patches (to prevent sign-in loop)
+    S.kwrite64(S.proc_ucred + S.OFF.UCRED_CR_SCEAUTHID, SYSTEM_AUTHID);
+    S.kwrite64(S.proc_ucred + S.OFF.UCRED_CR_SCECAPS0, 0xFFFFFFFFFFFFFFFFn);
+    S.kwrite64(S.proc_ucred + S.OFF.UCRED_CR_SCECAPS1, 0xFFFFFFFFFFFFFFFFn);
 
-            if (!is_kptr(dynlib_eboot))
-                throw new Error("dynlib_eboot not a kptr: " + toHex(dynlib_eboot));
-
-            const eboot_segments = S.kread64(dynlib_eboot + 0x40n);
-
-            if (!is_kptr(eboot_segments))
-                throw new Error("eboot_segments not a kptr: " + toHex(eboot_segments));
-
-            S.kwrite64(eboot_segments + 0x08n, 0n);
-            S.kwrite64(eboot_segments + 0x10n, 0xFFFFFFFFFFFFFFFFn);
-            //await ulog("stage7: dynlib patched " +
-            //    "(syscalls + dlsym unrestricted, dynlib=" +
-            //    toHex(p_dynlib) + ")");
-
-            //await ulog("stage7: dynlib maximized; jailbreak fully finalized");
-            //await ulog("stage7: " + p2jb_version + " FW = " + FW_VERSION + " Jailbroken");
-            await ulog("stage7: finalize dynlib restrictions successful," + " FW " + FW_VERSION + " is Jailbroken");
-            //send_notification(p2jb_version + "\nFW=" + FW_VERSION + "\nJailbroken");
-
-            //await ulog("stage7: 'Jailbroken' notification sent -> stage_load_elf");
-
-        }
+    await ulog("stage7: finalize dynlib restrictions successful, FW " + FW_VERSION + " is Jailbroken");
+}
 
         const CPU_PDE_SHIFT = {
             PRESENT: 0, RW: 1, USER: 2, WRITE_THROUGH: 3, CACHE_DISABLE: 4,
@@ -2476,7 +2468,7 @@ async function start_p2jb() {
                     call(term1);
                     call(term2);
                 } catch (e) { }
-            }, 600);
+            }, 400);
             await ulog("Persistent killer activated for restart");
         } catch (e) { }
 
