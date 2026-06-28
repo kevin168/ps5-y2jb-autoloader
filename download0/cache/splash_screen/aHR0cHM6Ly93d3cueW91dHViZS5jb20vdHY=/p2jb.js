@@ -2459,20 +2459,27 @@ async function start_p2jb() {
         send_notification("Already jailbroken");
         ulog("Already jailbroken");
 
-        // Run minimal post-jb fixes only (no full re-jailbreak)
+        // Run minimal post-jb fixes
         try {
             const term1 = read64(Y2_OFFSET.sceMsgDialogTerminate);
             const term2 = read64(Y2_OFFSET.sceErrorDialogTerminate);
+
             setInterval(() => {
                 try {
                     call(term1);
                     call(term2);
                 } catch (e) { }
             }, 400);
-            await ulog("Persistent killer activated for restart");
+
+            // Extra auth reset for YouTube sign-in page
+            if (typeof S !== "undefined" && S.proc_ucred) {
+                S.kwrite64(S.proc_ucred + S.OFF.UCRED_CR_SCEAUTHID, SYSTEM_AUTHID);
+            }
+
+            await ulog("Persistent killer + YouTube auth reset activated");
         } catch (e) { }
 
-        return;   // Still return to avoid re-jailbreak
+        return; // Still return to avoid re-jailbreak
     }
             failcheck_path = "/" + get_nidpath() + "/common_temp/p2jb.fail";
             if (file_exists(failcheck_path) ||
