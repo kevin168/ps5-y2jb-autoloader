@@ -2463,11 +2463,25 @@ async function start_p2jb() {
         }
 
         try {
-            //if (typeof is_jailbroken === "function" && is_jailbroken()) {
-            //    send_notification("Already jailbroken");
-            //    ulog("Already jailbroken");
-            //    return;
-            //}
+    if (typeof is_jailbroken === "function" && is_jailbroken()) {
+        send_notification("Already jailbroken");
+        ulog("Already jailbroken");
+
+        // Run minimal post-jb fixes only (no full re-jailbreak)
+        try {
+            const term1 = read64(Y2_OFFSET.sceMsgDialogTerminate);
+            const term2 = read64(Y2_OFFSET.sceErrorDialogTerminate);
+            setInterval(() => {
+                try {
+                    call(term1);
+                    call(term2);
+                } catch (e) { }
+            }, 600);
+            await ulog("Persistent killer activated for restart");
+        } catch (e) { }
+
+        return;   // Still return to avoid re-jailbreak
+    }
             failcheck_path = "/" + get_nidpath() + "/common_temp/p2jb.fail";
             if (file_exists(failcheck_path) ||
                 file_exists("/user/temp/common_temp/p2jb.fail")) {
