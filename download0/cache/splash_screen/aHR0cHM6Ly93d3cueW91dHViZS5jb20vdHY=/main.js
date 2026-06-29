@@ -1047,7 +1047,7 @@ function trigger() {
         ////////////////////
 
         //await load_localscript('remotejsloader.js');
-        //await load_localscript('update.js');
+        await load_localscript('update.js');
         await load_localscript('icon_update.js');
         await load_localscript('autoload.js');
         await log(" ");
