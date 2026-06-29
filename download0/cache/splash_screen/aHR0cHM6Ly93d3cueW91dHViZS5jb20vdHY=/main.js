@@ -958,12 +958,12 @@ function trigger() {
             const splash_screen_web_module_impl_addr = read64(splash_screen_web_module_addr + 0x18n);
             //await log("splash_screen_web_module_impl_addr: " + toHex(splash_screen_web_module_impl_addr));
 
-            //await log("Disabling YouTube splash screen...");
+            await log("Disabling YouTube splash screen...");
             const main_web_module_generation_addr = browser_module_addr + 0xB08n;
             write32(main_web_module_generation_addr, 0xFFFFFFFFn);
-            //await log("YT splash disabled!");
+            await log("YT splash disabled!");
 
-            //await log("Disabling PSN popup...");
+            await log("Disabling PSN popup...");
 
             call(read64(Y2_OFFSET.sceMsgDialogTerminate));
 
@@ -977,35 +977,41 @@ function trigger() {
             // Set is_running to 1 (true)
             write8(is_running_addr, 0x1n);
 
-            //await log("PSN popup disabled!");
+            await log("PSN popup disabled!");
 
         } else {
+            await log("Delay before disabling popups...");
 
-            // This is voodoo hack
-            await log("Disabling PSN and no internet popup...");
+            await new Promise(r => setTimeout(r, 800));
+
+            await log("Patch PSN and no internet popup...");
 
             const sceMsgDialogTerminate = read64(Y2_OFFSET.sceMsgDialogTerminate);
             const sceErrorDialogTerminate = read64(Y2_OFFSET.sceErrorDialogTerminate);
 
             const timespec = malloc(0x10);
-            write64(timespec, 0n);       // tv_sec  = 0
-            write64(timespec + 8n, 1000000n); // tv_nsec = 1ms
+            write64(timespec, 0n);
+            write64(timespec + 8n, 800000n); // 0.8ms
 
-            // Longer but more reliable polling
-            for (let i = 0; i < 200; i++) {
+            while (call(sceMsgDialogTerminate) !== 0n) {
+                call(sceErrorDialogTerminate);
+                syscall(SYSCALL.nanosleep, timespec);
+            }
+
+            for (let i = 0; i < 150; i++) {
                 call(sceMsgDialogTerminate);
                 call(sceErrorDialogTerminate);
                 syscall(SYSCALL.nanosleep, timespec);
             }
 
-            // Extra safety round
-            for (let i = 0; i < 100; i++) {
-                call(sceMsgDialogTerminate);
-                call(sceErrorDialogTerminate);
-                syscall(SYSCALL.nanosleep, timespec);
-            }
+            setInterval(() => {
+                try {
+                    call(sceMsgDialogTerminate);
+                    call(sceErrorDialogTerminate);
+                } catch (e) { }
+            }, 1200);
 
-            await log("Popup disabled!");
+            await log("Popup disabled + persistent killer active");
         }
 
         FW_VERSION = get_fwversion();
@@ -1030,7 +1036,7 @@ function trigger() {
             await log("[WARN] Failed to protect splash.html: " + (e.message || e));
         }
 
-        //send_notification(version_string + "\nFW : " + FW_VERSION + "\nTitle ID : " + TITLE_ID + "\nAppVer : " + Y2_VERSION);
+        send_notification(version_string + "\nFW : " + FW_VERSION + "\nTitle ID : " + TITLE_ID + "\nAppVer : " + Y2_VERSION);
         //await log("FW detected : " + FW_VERSION);
         //await log("Title ID detected : " + TITLE_ID);
         //await log("AppVer detected : " + Y2_VERSION);
