@@ -980,36 +980,29 @@ function trigger() {
             await log("PSN popup disabled!");
 
         } else {
-            await log("Delay before disabling popups...");
-
-            await new Promise(r => setTimeout(r, 800));
-
-            await log("Patch PSN and no internet popup...");
+            await log("Disabling PSN and no internet popup...");
 
             const sceMsgDialogTerminate = read64(Y2_OFFSET.sceMsgDialogTerminate);
             const sceErrorDialogTerminate = read64(Y2_OFFSET.sceErrorDialogTerminate);
 
             const timespec = malloc(0x10);
             write64(timespec, 0n);
-            write64(timespec + 8n, 1000000n);
+            write64(timespec + 8n, 800000n); // 0.8ms
 
-            while (call(sceMsgDialogTerminate) !== 0n) {
-                call(sceErrorDialogTerminate);
-                syscall(SYSCALL.nanosleep, timespec);
-            }
-
-            for (let i = 0; i < 150; i++) {
+            // Strong initial kill
+            for (let i = 0; i < 300; i++) {
                 call(sceMsgDialogTerminate);
                 call(sceErrorDialogTerminate);
                 syscall(SYSCALL.nanosleep, timespec);
             }
 
+            // Persistent killer
             setInterval(() => {
                 try {
                     call(sceMsgDialogTerminate);
                     call(sceErrorDialogTerminate);
-                } catch (e) { }
-            }, 1200);
+                } catch (e) {}
+            }, 500);
 
             await log("Popup disabled + persistent killer active");
         }
